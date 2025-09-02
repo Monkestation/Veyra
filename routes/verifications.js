@@ -75,33 +75,50 @@ router.post('/', authenticateToken, (req, res) => {
     return res.status(400).json({ error: validation.message });
   }
 
-  const stmt = db.prepare(`
-    INSERT OR REPLACE INTO verifications
-    (discord_id, ckey, verified_flags, verification_method, verified_by, updated_at)
-    VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-  `);
-
-  stmt.run([
-    discord_id,
-    ckey,
-    JSON.stringify(verified_flags),
-    verification_method,
-    req.user.username
-  ], function(err) {
+  // First, check if the verification already exists
+  db.get('SELECT verified_flags FROM verifications WHERE discord_id = ?', [discord_id], (err, existingRow) => {
     if (err) {
       return res.status(500).json({ error: 'Database error' });
     }
 
-    logActivity(req.user.id, 'create_verification', `Discord ID: ${discord_id}, Ckey: ${ckey}`);
-    res.status(201).json({
-      message: 'Verification created/updated successfully',
+    // Merge verified_flags if record exists
+    let finalVerifiedFlags = verified_flags;
+    if (existingRow) {
+      const existingFlags = JSON.parse(existingRow.verified_flags || '{}');
+      // Merge existing flags with new flags (new flags take precedence)
+      finalVerifiedFlags = { ...existingFlags, ...verified_flags };
+    }
+
+    const stmt = db.prepare(`
+      INSERT OR REPLACE INTO verifications
+      (discord_id, ckey, verified_flags, verification_method, verified_by, updated_at)
+      VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+    `);
+
+    stmt.run([
       discord_id,
       ckey,
-      verified_flags
-    });
-  });
+      JSON.stringify(finalVerifiedFlags),
+      verification_method,
+      req.user.username
+    ], function(err) {
+      if (err) {
+        return res.status(500).json({ error: 'Database error' });
+      }
 
-  stmt.finalize();
+      const action = existingRow ? 'update_verification' : 'create_verification';
+      logActivity(req.user.id, action, `Discord ID: ${discord_id}, Ckey: ${ckey}`);
+      
+      res.status(201).json({
+        message: existingRow ? 'Verification updated successfully' : 'Verification created successfully',
+        discord_id,
+        ckey,
+        verified_flags: finalVerifiedFlags
+      });
+    });
+
+    stmt.finalize();
+  });
 });
 
 // Update verification

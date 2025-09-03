@@ -51,3 +51,9 @@
   - Administrative access is protected by key-based authentication.
 - **Immutable Records**: Verification logs cannot be edited without creating an audit entry.
 - **Automatic Cleanup**: Expired or incomplete sessions older than 24 hours are purged.
+
+
+## External Access
+- Anything accessing data on the API needs to be done through an authenticated user account
+- User accounts rely on a JWT to prevent a token leak from causing lasting damage
+- User accounts can fetch the ckey, discord id, and verified flags like ID for iDenfy, or other flags if you are using it for age vetting instead of hard ID checks.

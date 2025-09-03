@@ -335,7 +335,9 @@ const deleteUser = async (userId) => {
 ## Verifications Routes
 Base URL: `/api/v1/verify`
 
-### GET `/api/v1/verify/:discord_id`
+### Discord ID Routes
+
+#### GET `/api/v1/verify/:discord_id`
 Get specific verification by Discord ID.
 
 **Headers:**
@@ -359,10 +361,6 @@ Authorization: Bearer <jwt-token>
 }
 ```
 
-**Error Responses:**
-- `404`: Verification not found
-- `500`: Database error
-
 **JavaScript Example:**
 ```javascript
 const getVerification = async (discordId) => {
@@ -370,15 +368,11 @@ const getVerification = async (discordId) => {
   
   try {
     const response = await fetch(`/api/v1/verify/${discordId}`, {
-      headers: {
-        'Authorization': `Bearer ${token}`
-      }
+      headers: { 'Authorization': `Bearer ${token}` }
     });
     
     if (!response.ok) {
-      if (response.status === 404) {
-        return null; // Verification not found
-      }
+      if (response.status === 404) return null;
       throw new Error('Failed to fetch verification');
     }
     
@@ -390,17 +384,228 @@ const getVerification = async (discordId) => {
 };
 ```
 
-### GET `/api/v1/verify`
-Get all verifications with pagination and search.
+### PUT `/api/v1/verify/:discord_id`
+Update existing verification by Discord ID.
 
 **Headers:**
 ```
 Authorization: Bearer <jwt-token>
 ```
 
+**Request Body:**
+```json
+{
+  "ckey": "string (optional)",
+  "verified_flags": "object (optional)",
+  "verification_method": "string (optional)"
+}
+```
+
+#### DELETE `/api/v1/verify/:discord_id`
+Delete verification by Discord ID (Admin only).
+
+### Ckey Routes
+
+#### GET `/api/v1/verify/ckey/:ckey`
+Get specific verification by ckey.
+
+**Headers:**
+```
+Authorization: Bearer <jwt-token>
+```
+
+**Response (200 OK):**
+```json
+{
+  "discord_id": "123456789012345678",
+  "ckey": "player_name",
+  "verified_flags": {
+    "byond_verified": true,
+    "discord_verified": true
+  },
+  "verification_method": "manual",
+  "verified_by": "admin",
+  "created_at": "2024-01-01T00:00:00.000Z",
+  "updated_at": "2024-01-01T00:00:00.000Z"
+}
+```
+
+**JavaScript Example:**
+```javascript
+const getVerificationByCkey = async (ckey) => {
+  const token = localStorage.getItem('token');
+  
+  try {
+    const response = await fetch(`/api/v1/verify/ckey/${ckey}`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    
+    if (!response.ok) {
+      if (response.status === 404) return null;
+      throw new Error('Failed to fetch verification');
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error('Error fetching verification:', error);
+    throw error;
+  }
+};
+```
+
+#### PUT `/api/v1/verify/ckey/:ckey`
+Update existing verification by ckey.
+
+**Headers:**
+```
+Authorization: Bearer <jwt-token>
+```
+
+**Request Body:**
+```json
+{
+  "discord_id": "string (optional)",
+  "verified_flags": "object (optional)",
+  "verification_method": "string (optional)"
+}
+```
+
+#### DELETE `/api/v1/verify/ckey/:ckey`
+Delete verification by ckey (Admin only).
+
+### Bulk Routes
+
+#### POST `/api/v1/verify/bulk/discord`
+Get multiple verifications by Discord IDs.
+
+**Headers:**
+```
+Authorization: Bearer <jwt-token>
+```
+
+**Request Body:**
+```json
+{
+  "discord_ids": ["123456789012345678", "987654321098765432"]
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "verifications": [
+    {
+      "discord_id": "123456789012345678",
+      "ckey": "player_name",
+      "verified_flags": {
+        "byond_verified": true,
+        "discord_verified": true
+      },
+      "verification_method": "manual",
+      "verified_by": "admin",
+      "created_at": "2024-01-01T00:00:00.000Z",
+      "updated_at": "2024-01-01T00:00:00.000Z"
+    }
+  ]
+}
+```
+
+**JavaScript Example:**
+```javascript
+const getBulkVerificationsByDiscord = async (discordIds) => {
+  const token = localStorage.getItem('token');
+  
+  try {
+    const response = await fetch('/api/v1/verify/bulk/discord', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ discord_ids: discordIds })
+    });
+    
+    if (!response.ok) {
+      throw new Error('Failed to fetch bulk verifications');
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error('Error fetching bulk verifications:', error);
+    throw error;
+  }
+};
+```
+
+#### POST `/api/v1/verify/bulk/ckey`
+Get multiple verifications by ckeys.
+
+**Headers:**
+```
+Authorization: Bearer <jwt-token>
+```
+
+**Request Body:**
+```json
+{
+  "ckeys": ["player_one", "player_two", "player_three"]
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "verifications": [
+    {
+      "discord_id": "123456789012345678",
+      "ckey": "player_one",
+      "verified_flags": {
+        "byond_verified": true
+      },
+      "verification_method": "manual",
+      "verified_by": "admin",
+      "created_at": "2024-01-01T00:00:00.000Z",
+      "updated_at": "2024-01-01T00:00:00.000Z"
+    }
+  ]
+}
+```
+
+**JavaScript Example:**
+```javascript
+const getBulkVerificationsByCkey = async (ckeys) => {
+  const token = localStorage.getItem('token');
+  
+  try {
+    const response = await fetch('/api/v1/verify/bulk/ckey', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ ckeys })
+    });
+    
+    if (!response.ok) {
+      throw new Error('Failed to fetch bulk verifications');
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error('Error fetching bulk verifications:', error);
+    throw error;
+  }
+};
+```
+
+## General Routes
+
+### GET `/api/v1/verify`
+Get all verifications with pagination and search.
+
 **Query Parameters:**
 - `page` (optional): Page number (default: 1)
-- `limit` (optional): Items per page (default: 50)
+- `limit` (optional): Items per page (default: 50, max: 100)
 - `search` (optional): Search term for discord_id or ckey
 
 **Response (200 OK):**
@@ -424,42 +629,8 @@ Authorization: Bearer <jwt-token>
 }
 ```
 
-**JavaScript Example:**
-```javascript
-const getVerifications = async (page = 1, limit = 50, search = '') => {
-  const token = localStorage.getItem('token');
-  const params = new URLSearchParams({ page, limit });
-  
-  if (search) {
-    params.append('search', search);
-  }
-  
-  try {
-    const response = await fetch(`/api/v1/verify?${params}`, {
-      headers: {
-        'Authorization': `Bearer ${token}`
-      }
-    });
-    
-    if (!response.ok) {
-      throw new Error('Failed to fetch verifications');
-    }
-    
-    return await response.json();
-  } catch (error) {
-    console.error('Error fetching verifications:', error);
-    throw error;
-  }
-};
-```
-
 ### POST `/api/v1/verify`
 Create or update verification.
-
-**Headers:**
-```
-Authorization: Bearer <jwt-token>
-```
 
 **Request Body:**
 ```json
@@ -482,146 +653,6 @@ Authorization: Bearer <jwt-token>
   }
 }
 ```
-
-**JavaScript Example:**
-```javascript
-const createVerification = async (discordId, ckey, verifiedFlags = {}, method = 'manual') => {
-  const token = localStorage.getItem('token');
-  
-  try {
-    const response = await fetch('/api/v1/verify', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({
-        discord_id: discordId,
-        ckey,
-        verified_flags: verifiedFlags,
-        verification_method: method
-      })
-    });
-    
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error);
-    }
-    
-    return await response.json();
-  } catch (error) {
-    console.error('Verification creation failed:', error.message);
-    throw error;
-  }
-};
-
-// Usage
-createVerification('123456789012345678', 'player_name', {
-  byond_verified: true,
-  discord_verified: true
-}, 'manual');
-```
-
-### PUT `/api/v1/verify/:discord_id`
-Update existing verification.
-
-**Headers:**
-```
-Authorization: Bearer <jwt-token>
-```
-
-**Request Body:**
-```json
-{
-  "ckey": "string (optional)",
-  "verified_flags": "object (optional)",
-  "verification_method": "string (optional)"
-}
-```
-
-**Response (200 OK):**
-```json
-{
-  "message": "Verification updated successfully"
-}
-```
-
-**JavaScript Example:**
-```javascript
-const updateVerification = async (discordId, updates) => {
-  const token = localStorage.getItem('token');
-  
-  try {
-    const response = await fetch(`/api/v1/verify/${discordId}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify(updates)
-    });
-    
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error);
-    }
-    
-    return await response.json();
-  } catch (error) {
-    console.error('Verification update failed:', error.message);
-    throw error;
-  }
-};
-
-// Usage
-updateVerification('123456789012345678', {
-  ckey: 'new_player_name',
-  verified_flags: { byond_verified: true, discord_verified: false }
-});
-```
-
-### DELETE `/api/v1/verify/:discord_id`
-Delete verification (Admin only).
-
-**Headers:**
-```
-Authorization: Bearer <jwt-token>
-```
-
-**Response (200 OK):**
-```json
-{
-  "message": "Verification deleted successfully"
-}
-```
-
-**JavaScript Example:**
-```javascript
-const deleteVerification = async (discordId) => {
-  const token = localStorage.getItem('token');
-  
-  try {
-    const response = await fetch(`/api/v1/verify/${discordId}`, {
-      method: 'DELETE',
-      headers: {
-        'Authorization': `Bearer ${token}`
-      }
-    });
-    
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error);
-    }
-    
-    return await response.json();
-  } catch (error) {
-    console.error('Verification deletion failed:', error.message);
-    throw error;
-  }
-};
-```
-
----
 
 ## Analytics Routes
 Base URL: `/api/analytics`

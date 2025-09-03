@@ -183,4 +183,159 @@ router.delete('/:discord_id', authenticateToken, requireAdmin, (req, res) => {
   });
 });
 
+// Bulk get verifications by Discord IDs
+router.post('/bulk/discord', authenticateToken, (req, res) => {
+  const { discord_ids } = req.body;
+
+  if (!Array.isArray(discord_ids) || discord_ids.length === 0) {
+    return res.status(400).json({ error: 'discord_ids must be a non-empty array' });
+  }
+
+  if (discord_ids.length > 100) {
+    return res.status(400).json({ error: 'Maximum 100 discord_ids allowed per request' });
+  }
+
+  const placeholders = discord_ids.map(() => '?').join(',');
+  const query = `SELECT * FROM verifications WHERE discord_id IN (${placeholders})`;
+
+  db.all(query, discord_ids, (err, rows) => {
+    if (err) {
+      return res.status(500).json({ error: 'Database error' });
+    }
+
+    const verifications = rows.map(row => ({
+      discord_id: row.discord_id,
+      ckey: row.ckey,
+      verified_flags: JSON.parse(row.verified_flags || '{}'),
+      verification_method: row.verification_method,
+      verified_by: row.verified_by,
+      created_at: row.created_at,
+      updated_at: row.updated_at
+    }));
+
+    res.json({ verifications });
+  });
+});
+
+// Bulk get verifications by ckeys
+router.post('/bulk/ckey', authenticateToken, (req, res) => {
+  const { ckeys } = req.body;
+
+  if (!Array.isArray(ckeys) || ckeys.length === 0) {
+    return res.status(400).json({ error: 'ckeys must be a non-empty array' });
+  }
+
+  if (ckeys.length > 100) {
+    return res.status(400).json({ error: 'Maximum 100 ckeys allowed per request' });
+  }
+
+  const placeholders = ckeys.map(() => '?').join(',');
+  const query = `SELECT * FROM verifications WHERE ckey IN (${placeholders})`;
+
+  db.all(query, ckeys, (err, rows) => {
+    if (err) {
+      return res.status(500).json({ error: 'Database error' });
+    }
+
+    const verifications = rows.map(row => ({
+      discord_id: row.discord_id,
+      ckey: row.ckey,
+      verified_flags: JSON.parse(row.verified_flags || '{}'),
+      verification_method: row.verification_method,
+      verified_by: row.verified_by,
+      created_at: row.created_at,
+      updated_at: row.updated_at
+    }));
+
+    res.json({ verifications });
+  });
+});
+
+// Get specific verification by ckey
+router.get('/ckey/:ckey', authenticateToken, (req, res) => {
+  const ckey = req.params.ckey;
+
+  db.get('SELECT * FROM verifications WHERE ckey = ?', [ckey], (err, row) => {
+    if (err) {
+      return res.status(500).json({ error: 'Database error' });
+    }
+
+    if (!row) {
+      return res.status(404).json({ error: 'Verification not found' });
+    }
+
+    res.json({
+      discord_id: row.discord_id,
+      ckey: row.ckey,
+      verified_flags: JSON.parse(row.verified_flags || '{}'),
+      verification_method: row.verification_method,
+      verified_by: row.verified_by,
+      created_at: row.created_at,
+      updated_at: row.updated_at
+    });
+  });
+});
+
+// Update verification by ckey
+router.put('/ckey/:ckey', authenticateToken, (req, res) => {
+  const ckey = req.params.ckey;
+  const { discord_id, verified_flags, verification_method } = req.body;
+
+  let updates = [];
+  let params = [];
+
+  if (discord_id) {
+    updates.push('discord_id = ?');
+    params.push(discord_id);
+  }
+  if (verified_flags) {
+    updates.push('verified_flags = ?');
+    params.push(JSON.stringify(verified_flags));
+  }
+  if (verification_method) {
+    updates.push('verification_method = ?');
+    params.push(verification_method);
+  }
+
+  if (updates.length === 0) {
+    return res.status(400).json({ error: 'No valid fields to update' });
+  }
+
+  updates.push('verified_by = ?', 'updated_at = CURRENT_TIMESTAMP');
+  params.push(req.user.username, ckey);
+
+  const query = `UPDATE verifications SET ${updates.join(', ')} WHERE ckey = ?`;
+
+  db.run(query, params, function(err) {
+    if (err) {
+      return res.status(500).json({ error: 'Database error' });
+    }
+
+    if (this.changes === 0) {
+      return res.status(404).json({ error: 'Verification not found' });
+    }
+
+    logActivity(req.user.id, 'update_verification', `Ckey: ${ckey}`);
+    res.json({ message: 'Verification updated successfully' });
+  });
+});
+
+// Delete verification by ckey (Admin only)
+router.delete('/ckey/:ckey', authenticateToken, requireAdmin, (req, res) => {
+  const ckey = req.params.ckey;
+
+  db.run('DELETE FROM verifications WHERE ckey = ?', [ckey], function(err) {
+    if (err) {
+      return res.status(500).json({ error: 'Database error' });
+    }
+
+    if (this.changes === 0) {
+      return res.status(404).json({ error: 'Verification not found' });
+    }
+
+    logActivity(req.user.id, 'delete_verification', `Ckey: ${ckey}`);
+    res.json({ message: 'Verification deleted successfully' });
+  });
+});
+
 module.exports = router;

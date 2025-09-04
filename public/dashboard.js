@@ -152,6 +152,12 @@ function showDashboard() {
     if (currentUser.role !== 'admin') {
         document.getElementById('users-nav').style.display = 'none';
         document.getElementById('activity-nav').style.display = 'none';
+        
+        // Hide verification add button and edit buttons in verifications page
+        const addVerificationBtn = document.querySelector('[onclick="openAddVerificationModal()"]');
+        if (addVerificationBtn) {
+            addVerificationBtn.style.display = 'none';
+        }
     }
 }
 
@@ -386,14 +392,14 @@ function renderVerifications(verifications) {
             <td>${v.verified_by || 'N/A'}</td>
             <td>${new Date(v.created_at).toLocaleString()}</td>
             <td>
-                <button class="btn btn-sm btn-secondary" onclick="editVerification('${v.discord_id}')">
-                    <i class="fas fa-edit"></i>
-                </button>
                 ${currentUser.role === 'admin' ? `
+                    <button class="btn btn-sm btn-secondary" onclick="editVerification('${v.discord_id}')">
+                        <i class="fas fa-edit"></i>
+                    </button>
                     <button class="btn btn-sm btn-danger" onclick="deleteVerification('${v.discord_id}')">
                         <i class="fas fa-trash"></i>
                     </button>
-                ` : ''}
+                ` : '<span class="text-muted">View Only</span>'}
             </td>
         </tr>
     `).join('');
@@ -411,6 +417,11 @@ function clearSearch() {
 }
 
 async function deleteVerification(discordId) {
+    if (currentUser.role !== 'admin') {
+        showAlert('verifications-alert', 'Access denied. Admin privileges required.', 'error');
+        return;
+    }
+
     if (!confirm(`Are you sure you want to delete verification for Discord ID: ${discordId}?`)) {
         return;
     }
@@ -434,6 +445,11 @@ async function deleteVerification(discordId) {
 }
 
 function editVerification(discordId) {
+    if (currentUser.role !== 'admin') {
+        showAlert('verifications-alert', 'Access denied. Admin privileges required.', 'error');
+        return;
+    }
+
     // Find the verification data from the table
     const rows = document.querySelectorAll('#verifications-table tr');
     for (let row of rows) {
@@ -602,14 +618,27 @@ function closeModal(modalId) {
 }
 
 function openAddVerificationModal() {
+    if (currentUser.role !== 'admin') {
+        showAlert('verifications-alert', 'Access denied. Admin privileges required.', 'error');
+        return;
+    }
     openModal('add-verification-modal');
 }
 
 function openAddUserModal() {
+    if (currentUser.role !== 'admin') {
+        showAlert('users-alert', 'Access denied. Admin privileges required.', 'error');
+        return;
+    }
     openModal('add-user-modal');
 }
 
 async function submitVerificationForm() {
+    if (currentUser.role !== 'admin') {
+        showAlert('add-verification-alert', 'Access denied. Admin privileges required.', 'error');
+        return;
+    }
+
     const discordId = document.getElementById('add-discord-id').value;
     const ckey = document.getElementById('add-ckey').value;
     const method = document.getElementById('add-method').value;
@@ -653,6 +682,11 @@ async function submitVerificationForm() {
 }
 
 async function submitUserForm() {
+    if (currentUser.role !== 'admin') {
+        showAlert('add-user-alert', 'Access denied. Admin privileges required.', 'error');
+        return;
+    }
+
     const username = document.getElementById('add-user-username').value;
     const password = document.getElementById('add-user-password').value;
     const role = document.getElementById('add-user-role').value;

@@ -66,8 +66,8 @@ router.get('/', authenticateToken, (req, res) => {
   });
 });
 
-// Create or update verification
-router.post('/', authenticateToken, (req, res) => {
+// Create or update verification (Admin only)
+router.post('/', authenticateToken, requireAdmin, (req, res) => {
   const { discord_id, ckey, verified_flags = {}, verification_method = 'manual' } = req.body;
 
   const validation = validateRequired(['discord_id', 'ckey'], req.body);
@@ -121,8 +121,8 @@ router.post('/', authenticateToken, (req, res) => {
   });
 });
 
-// Update verification
-router.put('/:discord_id', authenticateToken, (req, res) => {
+// Update verification (Admin only)
+router.put('/:discord_id', authenticateToken, requireAdmin, (req, res) => {
   const discordId = req.params.discord_id;
   const { ckey, verified_flags, verification_method } = req.body;
 
@@ -276,8 +276,8 @@ router.get('/ckey/:ckey', authenticateToken, (req, res) => {
   });
 });
 
-// Update verification by ckey
-router.put('/ckey/:ckey', authenticateToken, (req, res) => {
+// Update verification by ckey (Admin only)
+router.put('/ckey/:ckey', authenticateToken, requireAdmin, (req, res) => {
   const ckey = req.params.ckey;
   const { discord_id, verified_flags, verification_method } = req.body;
 

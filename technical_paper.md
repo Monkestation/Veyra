@@ -29,7 +29,7 @@
 ### Data Stored by Veyra
 - **scanRef**: Non-identifiable verification reference.
 - **External Identifier**: Provided by client (e.g., BYOND key, Discord ID).
-- **Verification Status**: Approved, Denied, Expired, Suspected.
+- **Verification Status**: ID Approved, Vetted.
 - **Timestamps**: Verification completion and deletion request.
 
 ### Data Not Stored by Veyra

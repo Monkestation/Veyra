@@ -40,8 +40,10 @@ router.get('/', authenticateToken, (req, res) => {
   let params = [];
 
   if (search) {
-    query += ' WHERE LOWER(discord_id) LIKE LOWER(?) OR LOWER(REPLACE(ckey, " ", "")) LIKE LOWER(?)';
-    params = [`%${search}%`, `%${search.replace(/\s/g, '')}%`];
+    // Normalize search term: replace spaces and underscores, then remove them entirely
+    const normalizedSearch = search.replace(/[\s_]/g, '');
+    query += ' WHERE LOWER(discord_id) LIKE LOWER(?) OR LOWER(REPLACE(REPLACE(ckey, " ", ""), "_", "")) LIKE LOWER(?)';
+    params = [`%${search}%`, `%${normalizedSearch}%`];
   }
 
   query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
@@ -70,9 +72,9 @@ router.get('/', authenticateToken, (req, res) => {
 router.post('/', authenticateToken, requireAdmin, (req, res) => {
   let { discord_id, ckey, verified_flags = {}, verification_method = 'manual' } = req.body;
 
-  // Remove spaces from ckey to match in-game parsing
+  // Remove spaces and underscores from ckey to match in-game parsing
   if (ckey) {
-    ckey = ckey.replace(/\s/g, '');
+    ckey = ckey.replace(/[\s_]/g, '');
   }
 
   const validation = validateRequired(['discord_id', 'ckey'], req.body);
@@ -131,9 +133,9 @@ router.put('/:discord_id', authenticateToken, requireAdmin, (req, res) => {
   const discordId = req.params.discord_id;
   let { ckey, verified_flags, verification_method } = req.body;
 
-  // Remove spaces from ckey to match in-game parsing
+  // Remove spaces and underscores from ckey to match in-game parsing
   if (ckey) {
-    ckey = ckey.replace(/\s/g, '');
+    ckey = ckey.replace(/[\s_]/g, '');
   }
 
   let updates = [];
@@ -239,11 +241,11 @@ router.post('/bulk/ckey', authenticateToken, (req, res) => {
     return res.status(400).json({ error: 'Maximum 100 ckeys allowed per request' });
   }
 
-  const placeholders = ckeys.map(() => 'LOWER(REPLACE(ckey, " ", "")) = LOWER(?)').join(' OR ');
+  const placeholders = ckeys.map(() => 'LOWER(REPLACE(REPLACE(ckey, " ", ""), "_", "")) = LOWER(?)').join(' OR ');
   const query = `SELECT * FROM verifications WHERE ${placeholders}`;
   
-  // Remove spaces from all ckeys for comparison
-  const processedCkeys = ckeys.map(ckey => ckey.replace(/\s/g, ''));
+  // Remove spaces and underscores from all ckeys for comparison
+  const processedCkeys = ckeys.map(ckey => ckey.replace(/[\s_]/g, ''));
 
   db.all(query, processedCkeys, (err, rows) => {
     if (err) {
@@ -268,10 +270,10 @@ router.post('/bulk/ckey', authenticateToken, (req, res) => {
 router.get('/ckey/:ckey', authenticateToken, (req, res) => {
   let ckey = req.params.ckey;
   
-  // Remove spaces from ckey to match in-game parsing
-  ckey = ckey.replace(/\s/g, '');
+  // Remove spaces and underscores from ckey to match in-game parsing
+  ckey = ckey.replace(/[\s_]/g, '');
 
-  db.get('SELECT * FROM verifications WHERE LOWER(REPLACE(ckey, " ", "")) = LOWER(?)', [ckey], (err, row) => {
+  db.get('SELECT * FROM verifications WHERE LOWER(REPLACE(REPLACE(ckey, " ", ""), "_", "")) = LOWER(?)', [ckey], (err, row) => {
     if (err) {
       return res.status(500).json({ error: 'Database error' });
     }
@@ -297,8 +299,8 @@ router.put('/ckey/:ckey', authenticateToken, requireAdmin, (req, res) => {
   let ckey = req.params.ckey;
   let { discord_id, verified_flags, verification_method } = req.body;
   
-  // Remove spaces from ckey to match in-game parsing
-  ckey = ckey.replace(/\s/g, '');
+  // Remove spaces and underscores from ckey to match in-game parsing
+  ckey = ckey.replace(/[\s_]/g, '');
 
   let updates = [];
   let params = [];
@@ -323,7 +325,7 @@ router.put('/ckey/:ckey', authenticateToken, requireAdmin, (req, res) => {
   updates.push('verified_by = ?', 'updated_at = CURRENT_TIMESTAMP');
   params.push(req.user.username, ckey);
 
-  const query = `UPDATE verifications SET ${updates.join(', ')} WHERE LOWER(REPLACE(ckey, " ", "")) = LOWER(?)`;
+  const query = `UPDATE verifications SET ${updates.join(', ')} WHERE LOWER(REPLACE(REPLACE(ckey, " ", ""), "_", "")) = LOWER(?)`;
 
   db.run(query, params, function(err) {
     if (err) {
@@ -343,10 +345,10 @@ router.put('/ckey/:ckey', authenticateToken, requireAdmin, (req, res) => {
 router.delete('/ckey/:ckey', authenticateToken, requireAdmin, (req, res) => {
   let ckey = req.params.ckey;
   
-  // Remove spaces from ckey to match in-game parsing
-  ckey = ckey.replace(/\s/g, '');
+  // Remove spaces and underscores from ckey to match in-game parsing
+  ckey = ckey.replace(/[\s_]/g, '');
 
-  db.run('DELETE FROM verifications WHERE LOWER(REPLACE(ckey, " ", "")) = LOWER(?)', [ckey], function(err) {
+  db.run('DELETE FROM verifications WHERE LOWER(REPLACE(REPLACE(ckey, " ", ""), "_", "")) = LOWER(?)', [ckey], function(err) {
     if (err) {
       return res.status(500).json({ error: 'Database error' });
     }

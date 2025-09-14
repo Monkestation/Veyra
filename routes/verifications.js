@@ -10,7 +10,7 @@ const router = express.Router();
 router.get('/:discord_id', authenticateToken, (req, res) => {
   const discordId = req.params.discord_id;
 
-  db.get('SELECT * FROM verifications WHERE discord_id = ?', [discordId], (err, row) => {
+  db.get('SELECT * FROM verifications WHERE LOWER(discord_id) = LOWER(?)', [discordId], (err, row) => {
     if (err) {
       return res.status(500).json({ error: 'Database error' });
     }
@@ -40,7 +40,7 @@ router.get('/', authenticateToken, (req, res) => {
   let params = [];
 
   if (search) {
-    query += ' WHERE discord_id LIKE ? OR ckey LIKE ?';
+    query += ' WHERE LOWER(discord_id) LIKE LOWER(?) OR LOWER(ckey) LIKE LOWER(?)';
     params = [`%${search}%`, `%${search}%`];
   }
 
@@ -75,8 +75,8 @@ router.post('/', authenticateToken, requireAdmin, (req, res) => {
     return res.status(400).json({ error: validation.message });
   }
 
-  // First, check if the verification already exists
-  db.get('SELECT verified_flags FROM verifications WHERE discord_id = ?', [discord_id], (err, existingRow) => {
+  // First, check if the verification already exists (case-insensitive)
+  db.get('SELECT verified_flags FROM verifications WHERE LOWER(discord_id) = LOWER(?)', [discord_id], (err, existingRow) => {
     if (err) {
       return res.status(500).json({ error: 'Database error' });
     }
@@ -149,7 +149,7 @@ router.put('/:discord_id', authenticateToken, requireAdmin, (req, res) => {
   updates.push('verified_by = ?', 'updated_at = CURRENT_TIMESTAMP');
   params.push(req.user.username, discordId);
 
-  const query = `UPDATE verifications SET ${updates.join(', ')} WHERE discord_id = ?`;
+  const query = `UPDATE verifications SET ${updates.join(', ')} WHERE LOWER(discord_id) = LOWER(?)`;
 
   db.run(query, params, function(err) {
     if (err) {
@@ -169,7 +169,7 @@ router.put('/:discord_id', authenticateToken, requireAdmin, (req, res) => {
 router.delete('/:discord_id', authenticateToken, requireAdmin, (req, res) => {
   const discordId = req.params.discord_id;
 
-  db.run('DELETE FROM verifications WHERE discord_id = ?', [discordId], function(err) {
+  db.run('DELETE FROM verifications WHERE LOWER(discord_id) = LOWER(?)', [discordId], function(err) {
     if (err) {
       return res.status(500).json({ error: 'Database error' });
     }
@@ -195,8 +195,8 @@ router.post('/bulk/discord', authenticateToken, (req, res) => {
     return res.status(400).json({ error: 'Maximum 100 discord_ids allowed per request' });
   }
 
-  const placeholders = discord_ids.map(() => '?').join(',');
-  const query = `SELECT * FROM verifications WHERE discord_id IN (${placeholders})`;
+  const placeholders = discord_ids.map(() => 'LOWER(discord_id) = LOWER(?)').join(' OR ');
+  const query = `SELECT * FROM verifications WHERE ${placeholders}`;
 
   db.all(query, discord_ids, (err, rows) => {
     if (err) {
@@ -229,8 +229,8 @@ router.post('/bulk/ckey', authenticateToken, (req, res) => {
     return res.status(400).json({ error: 'Maximum 100 ckeys allowed per request' });
   }
 
-  const placeholders = ckeys.map(() => '?').join(',');
-  const query = `SELECT * FROM verifications WHERE ckey IN (${placeholders})`;
+  const placeholders = ckeys.map(() => 'LOWER(ckey) = LOWER(?)').join(' OR ');
+  const query = `SELECT * FROM verifications WHERE ${placeholders}`;
 
   db.all(query, ckeys, (err, rows) => {
     if (err) {
@@ -255,7 +255,7 @@ router.post('/bulk/ckey', authenticateToken, (req, res) => {
 router.get('/ckey/:ckey', authenticateToken, (req, res) => {
   const ckey = req.params.ckey;
 
-  db.get('SELECT * FROM verifications WHERE ckey = ?', [ckey], (err, row) => {
+  db.get('SELECT * FROM verifications WHERE LOWER(ckey) = LOWER(?)', [ckey], (err, row) => {
     if (err) {
       return res.status(500).json({ error: 'Database error' });
     }
@@ -304,7 +304,7 @@ router.put('/ckey/:ckey', authenticateToken, requireAdmin, (req, res) => {
   updates.push('verified_by = ?', 'updated_at = CURRENT_TIMESTAMP');
   params.push(req.user.username, ckey);
 
-  const query = `UPDATE verifications SET ${updates.join(', ')} WHERE ckey = ?`;
+  const query = `UPDATE verifications SET ${updates.join(', ')} WHERE LOWER(ckey) = LOWER(?)`;
 
   db.run(query, params, function(err) {
     if (err) {
@@ -324,7 +324,7 @@ router.put('/ckey/:ckey', authenticateToken, requireAdmin, (req, res) => {
 router.delete('/ckey/:ckey', authenticateToken, requireAdmin, (req, res) => {
   const ckey = req.params.ckey;
 
-  db.run('DELETE FROM verifications WHERE ckey = ?', [ckey], function(err) {
+  db.run('DELETE FROM verifications WHERE LOWER(ckey) = LOWER(?)', [ckey], function(err) {
     if (err) {
       return res.status(500).json({ error: 'Database error' });
     }

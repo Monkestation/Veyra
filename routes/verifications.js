@@ -40,8 +40,8 @@ router.get('/', authenticateToken, (req, res) => {
   let params = [];
 
   if (search) {
-    query += ' WHERE LOWER(discord_id) LIKE LOWER(?) OR LOWER(ckey) LIKE LOWER(?)';
-    params = [`%${search}%`, `%${search}%`];
+    query += ' WHERE LOWER(discord_id) LIKE LOWER(?) OR LOWER(REPLACE(ckey, " ", "")) LIKE LOWER(?)';
+    params = [`%${search}%`, `%${search.replace(/\s/g, '')}%`];
   }
 
   query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
@@ -68,7 +68,12 @@ router.get('/', authenticateToken, (req, res) => {
 
 // Create or update verification (Admin only)
 router.post('/', authenticateToken, requireAdmin, (req, res) => {
-  const { discord_id, ckey, verified_flags = {}, verification_method = 'manual' } = req.body;
+  let { discord_id, ckey, verified_flags = {}, verification_method = 'manual' } = req.body;
+
+  // Remove spaces from ckey to match in-game parsing
+  if (ckey) {
+    ckey = ckey.replace(/\s/g, '');
+  }
 
   const validation = validateRequired(['discord_id', 'ckey'], req.body);
   if (!validation.valid) {
@@ -124,7 +129,12 @@ router.post('/', authenticateToken, requireAdmin, (req, res) => {
 // Update verification (Admin only)
 router.put('/:discord_id', authenticateToken, requireAdmin, (req, res) => {
   const discordId = req.params.discord_id;
-  const { ckey, verified_flags, verification_method } = req.body;
+  let { ckey, verified_flags, verification_method } = req.body;
+
+  // Remove spaces from ckey to match in-game parsing
+  if (ckey) {
+    ckey = ckey.replace(/\s/g, '');
+  }
 
   let updates = [];
   let params = [];
@@ -229,10 +239,13 @@ router.post('/bulk/ckey', authenticateToken, (req, res) => {
     return res.status(400).json({ error: 'Maximum 100 ckeys allowed per request' });
   }
 
-  const placeholders = ckeys.map(() => 'LOWER(ckey) = LOWER(?)').join(' OR ');
+  const placeholders = ckeys.map(() => 'LOWER(REPLACE(ckey, " ", "")) = LOWER(?)').join(' OR ');
   const query = `SELECT * FROM verifications WHERE ${placeholders}`;
+  
+  // Remove spaces from all ckeys for comparison
+  const processedCkeys = ckeys.map(ckey => ckey.replace(/\s/g, ''));
 
-  db.all(query, ckeys, (err, rows) => {
+  db.all(query, processedCkeys, (err, rows) => {
     if (err) {
       return res.status(500).json({ error: 'Database error' });
     }
@@ -253,9 +266,12 @@ router.post('/bulk/ckey', authenticateToken, (req, res) => {
 
 // Get specific verification by ckey
 router.get('/ckey/:ckey', authenticateToken, (req, res) => {
-  const ckey = req.params.ckey;
+  let ckey = req.params.ckey;
+  
+  // Remove spaces from ckey to match in-game parsing
+  ckey = ckey.replace(/\s/g, '');
 
-  db.get('SELECT * FROM verifications WHERE LOWER(ckey) = LOWER(?)', [ckey], (err, row) => {
+  db.get('SELECT * FROM verifications WHERE LOWER(REPLACE(ckey, " ", "")) = LOWER(?)', [ckey], (err, row) => {
     if (err) {
       return res.status(500).json({ error: 'Database error' });
     }
@@ -278,8 +294,11 @@ router.get('/ckey/:ckey', authenticateToken, (req, res) => {
 
 // Update verification by ckey (Admin only)
 router.put('/ckey/:ckey', authenticateToken, requireAdmin, (req, res) => {
-  const ckey = req.params.ckey;
-  const { discord_id, verified_flags, verification_method } = req.body;
+  let ckey = req.params.ckey;
+  let { discord_id, verified_flags, verification_method } = req.body;
+  
+  // Remove spaces from ckey to match in-game parsing
+  ckey = ckey.replace(/\s/g, '');
 
   let updates = [];
   let params = [];
@@ -304,7 +323,7 @@ router.put('/ckey/:ckey', authenticateToken, requireAdmin, (req, res) => {
   updates.push('verified_by = ?', 'updated_at = CURRENT_TIMESTAMP');
   params.push(req.user.username, ckey);
 
-  const query = `UPDATE verifications SET ${updates.join(', ')} WHERE LOWER(ckey) = LOWER(?)`;
+  const query = `UPDATE verifications SET ${updates.join(', ')} WHERE LOWER(REPLACE(ckey, " ", "")) = LOWER(?)`;
 
   db.run(query, params, function(err) {
     if (err) {
@@ -322,9 +341,12 @@ router.put('/ckey/:ckey', authenticateToken, requireAdmin, (req, res) => {
 
 // Delete verification by ckey (Admin only)
 router.delete('/ckey/:ckey', authenticateToken, requireAdmin, (req, res) => {
-  const ckey = req.params.ckey;
+  let ckey = req.params.ckey;
+  
+  // Remove spaces from ckey to match in-game parsing
+  ckey = ckey.replace(/\s/g, '');
 
-  db.run('DELETE FROM verifications WHERE LOWER(ckey) = LOWER(?)', [ckey], function(err) {
+  db.run('DELETE FROM verifications WHERE LOWER(REPLACE(ckey, " ", "")) = LOWER(?)', [ckey], function(err) {
     if (err) {
       return res.status(500).json({ error: 'Database error' });
     }

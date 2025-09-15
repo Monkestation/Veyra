@@ -1,3 +1,37 @@
+const validateUsername = (username) => {
+  const allowedChars = /^[a-zA-Z0-9_]+$/;
+  if (!username || !allowedChars.test(username)) {
+    return {
+      valid: false,
+      message:
+        "Username can only contain letters, numbers, and underscores.",
+    };
+  }
+
+  if (/^\d+$/.test(username)) {
+    return {
+      valid: false,
+      message: "Username cannot be composed of only numbers.",
+    };
+  }
+
+  if (username.length > 32) {
+    return {
+      valid: false,
+      message: "Username cannot be longer than 32 characters.",
+    };
+  }
+
+  if (username.length < 3) {
+    return {
+      valid: false,
+      message: "Username cannot be shorter than 3 characters.",
+    };
+  }
+
+  return { valid: true, message: "Username is valid." };
+};
+
 const validatePassword = (password) => {
   if (!password || password.length < 6) {
     return { valid: false, message: 'Password must be at least 6 characters' };
@@ -27,6 +61,7 @@ const validateRequired = (fields, obj) => {
 };
 
 module.exports = {
+  validateUsername,
   validatePassword,
   validateRole,
   validateRequired

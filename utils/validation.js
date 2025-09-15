@@ -29,7 +29,7 @@ const validateUsername = (username) => {
     };
   }
 
-  return { valid: true, message: "Username is valid." };
+  return { valid: true };
 };
 
 const validatePassword = (password) => {

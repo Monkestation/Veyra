@@ -10,7 +10,7 @@ const router = express.Router();
 router.get('/:discord_id', authenticateToken, (req, res) => {
   const discordId = req.params.discord_id;
 
-  db.get('SELECT * FROM verifications WHERE discord_id = ?', [discordId], (err, row) => {
+  db.get('SELECT * FROM verifications WHERE LOWER(discord_id) = LOWER(?)', [discordId], (err, row) => {
     if (err) {
       return res.status(500).json({ error: 'Database error' });
     }
@@ -40,8 +40,10 @@ router.get('/', authenticateToken, (req, res) => {
   let params = [];
 
   if (search) {
-    query += ' WHERE discord_id LIKE ? OR ckey LIKE ?';
-    params = [`%${search}%`, `%${search}%`];
+    // Normalize search term: replace spaces and underscores, then remove them entirely
+    const normalizedSearch = search.replace(/[\s_]/g, '');
+    query += ' WHERE LOWER(discord_id) LIKE LOWER(?) OR LOWER(REPLACE(REPLACE(ckey, " ", ""), "_", "")) LIKE LOWER(?)';
+    params = [`%${search}%`, `%${normalizedSearch}%`];
   }
 
   query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
@@ -68,15 +70,20 @@ router.get('/', authenticateToken, (req, res) => {
 
 // Create or update verification (Admin only)
 router.post('/', authenticateToken, requireAdmin, (req, res) => {
-  const { discord_id, ckey, verified_flags = {}, verification_method = 'manual' } = req.body;
+  let { discord_id, ckey, verified_flags = {}, verification_method = 'manual' } = req.body;
+
+  // Remove spaces and underscores from ckey to match in-game parsing
+  if (ckey) {
+    ckey = ckey.replace(/[\s_]/g, '');
+  }
 
   const validation = validateRequired(['discord_id', 'ckey'], req.body);
   if (!validation.valid) {
     return res.status(400).json({ error: validation.message });
   }
 
-  // First, check if the verification already exists
-  db.get('SELECT verified_flags FROM verifications WHERE discord_id = ?', [discord_id], (err, existingRow) => {
+  // First, check if the verification already exists (case-insensitive)
+  db.get('SELECT verified_flags FROM verifications WHERE LOWER(discord_id) = LOWER(?)', [discord_id], (err, existingRow) => {
     if (err) {
       return res.status(500).json({ error: 'Database error' });
     }
@@ -124,7 +131,12 @@ router.post('/', authenticateToken, requireAdmin, (req, res) => {
 // Update verification (Admin only)
 router.put('/:discord_id', authenticateToken, requireAdmin, (req, res) => {
   const discordId = req.params.discord_id;
-  const { ckey, verified_flags: new_verified_flags, verification_method } = req.body;
+  let { ckey, verified_flags: new_verified_flags, verification_method } = req.body;
+
+  // Remove spaces and underscores from ckey to match in-game parsing
+  if (ckey) {
+    ckey = ckey.replace(/[\s_]/g, '');
+  }
 
   const selectQuery = 'SELECT verified_flags FROM verifications WHERE discord_id = ?';
   db.get(selectQuery, [discordId], (err, row) => {
@@ -172,7 +184,7 @@ router.put('/:discord_id', authenticateToken, requireAdmin, (req, res) => {
     updates.push('verified_by = ?', 'updated_at = CURRENT_TIMESTAMP');
     params.push(req.user.username, discordId);
 
-    const query = `UPDATE verifications SET ${updates.join(', ')} WHERE discord_id = ?`;
+    const query = `UPDATE verifications SET ${updates.join(', ')} WHERE LOWER(discord_id) = LOWER(?)`;
 
     db.run(query, params, function(err) {
       if (err) {
@@ -189,7 +201,7 @@ router.put('/:discord_id', authenticateToken, requireAdmin, (req, res) => {
 router.delete('/:discord_id', authenticateToken, requireAdmin, (req, res) => {
   const discordId = req.params.discord_id;
 
-  db.run('DELETE FROM verifications WHERE discord_id = ?', [discordId], function(err) {
+  db.run('DELETE FROM verifications WHERE LOWER(discord_id) = LOWER(?)', [discordId], function(err) {
     if (err) {
       return res.status(500).json({ error: 'Database error' });
     }
@@ -215,8 +227,8 @@ router.post('/bulk/discord', authenticateToken, (req, res) => {
     return res.status(400).json({ error: 'Maximum 100 discord_ids allowed per request' });
   }
 
-  const placeholders = discord_ids.map(() => '?').join(',');
-  const query = `SELECT * FROM verifications WHERE discord_id IN (${placeholders})`;
+  const placeholders = discord_ids.map(() => 'LOWER(discord_id) = LOWER(?)').join(' OR ');
+  const query = `SELECT * FROM verifications WHERE ${placeholders}`;
 
   db.all(query, discord_ids, (err, rows) => {
     if (err) {
@@ -249,10 +261,13 @@ router.post('/bulk/ckey', authenticateToken, (req, res) => {
     return res.status(400).json({ error: 'Maximum 100 ckeys allowed per request' });
   }
 
-  const placeholders = ckeys.map(() => '?').join(',');
-  const query = `SELECT * FROM verifications WHERE ckey IN (${placeholders})`;
+  const placeholders = ckeys.map(() => 'LOWER(REPLACE(REPLACE(ckey, " ", ""), "_", "")) = LOWER(?)').join(' OR ');
+  const query = `SELECT * FROM verifications WHERE ${placeholders}`;
+  
+  // Remove spaces and underscores from all ckeys for comparison
+  const processedCkeys = ckeys.map(ckey => ckey.replace(/[\s_]/g, ''));
 
-  db.all(query, ckeys, (err, rows) => {
+  db.all(query, processedCkeys, (err, rows) => {
     if (err) {
       return res.status(500).json({ error: 'Database error' });
     }
@@ -273,9 +288,12 @@ router.post('/bulk/ckey', authenticateToken, (req, res) => {
 
 // Get specific verification by ckey
 router.get('/ckey/:ckey', authenticateToken, (req, res) => {
-  const ckey = req.params.ckey;
+  let ckey = req.params.ckey;
+  
+  // Remove spaces and underscores from ckey to match in-game parsing
+  ckey = ckey.replace(/[\s_]/g, '');
 
-  db.get('SELECT * FROM verifications WHERE ckey = ?', [ckey], (err, row) => {
+  db.get('SELECT * FROM verifications WHERE LOWER(REPLACE(REPLACE(ckey, " ", ""), "_", "")) = LOWER(?)', [ckey], (err, row) => {
     if (err) {
       return res.status(500).json({ error: 'Database error' });
     }
@@ -298,8 +316,11 @@ router.get('/ckey/:ckey', authenticateToken, (req, res) => {
 
 // Update verification by ckey (Admin only)
 router.put('/ckey/:ckey', authenticateToken, requireAdmin, (req, res) => {
-  const ckey = req.params.ckey;
-  const { discord_id, verified_flags, verification_method } = req.body;
+  let ckey = req.params.ckey;
+  let { discord_id, verified_flags, verification_method } = req.body;
+  
+  // Remove spaces and underscores from ckey to match in-game parsing
+  ckey = ckey.replace(/[\s_]/g, '');
 
   let updates = [];
   let params = [];
@@ -324,7 +345,7 @@ router.put('/ckey/:ckey', authenticateToken, requireAdmin, (req, res) => {
   updates.push('verified_by = ?', 'updated_at = CURRENT_TIMESTAMP');
   params.push(req.user.username, ckey);
 
-  const query = `UPDATE verifications SET ${updates.join(', ')} WHERE ckey = ?`;
+  const query = `UPDATE verifications SET ${updates.join(', ')} WHERE LOWER(REPLACE(REPLACE(ckey, " ", ""), "_", "")) = LOWER(?)`;
 
   db.run(query, params, function(err) {
     if (err) {
@@ -342,9 +363,12 @@ router.put('/ckey/:ckey', authenticateToken, requireAdmin, (req, res) => {
 
 // Delete verification by ckey (Admin only)
 router.delete('/ckey/:ckey', authenticateToken, requireAdmin, (req, res) => {
-  const ckey = req.params.ckey;
+  let ckey = req.params.ckey;
+  
+  // Remove spaces and underscores from ckey to match in-game parsing
+  ckey = ckey.replace(/[\s_]/g, '');
 
-  db.run('DELETE FROM verifications WHERE ckey = ?', [ckey], function(err) {
+  db.run('DELETE FROM verifications WHERE LOWER(REPLACE(REPLACE(ckey, " ", ""), "_", "")) = LOWER(?)', [ckey], function(err) {
     if (err) {
       return res.status(500).json({ error: 'Database error' });
     }

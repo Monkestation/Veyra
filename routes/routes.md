@@ -186,6 +186,62 @@ const getUsers = async () => {
 };
 ```
 
+### GET `/api/users/:id`
+Get a single user by their ID or username (Admin only). The route handles both numeric IDs and string-based usernames.
+
+**Parameters:**
+* `id` (string/number): The user's ID or username.
+
+**Headers:**
+```
+Authorization: Bearer <jwt-token>
+```
+**Response (200 OK):**
+```json
+{
+  "id": 1,
+  "username": "admin",
+  "role": "admin",
+  "created_at": "2024-01-01T00:00:00.000Z"
+},
+```
+
+**Response (404 Not Found):**
+```json
+{
+  "error": "User not found"
+}
+```
+
+**Javascript Example:**
+```js
+const getUser = async (identifier) => {
+  const token = localStorage.getItem('token');
+  
+  try {
+    const response = await fetch(`/api/users/${identifier}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Failed to fetch user');
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error('Error fetching user:', error);
+    throw error;
+  }
+};
+
+// Example usage:
+// getUser(123); //fetches by ID
+// getUser('admin'); // Fetches by username
+```
+
 ### POST `/api/users`
 Create new user (Admin only).
 
@@ -197,7 +253,7 @@ Authorization: Bearer <jwt-token>
 **Request Body:**
 ```json
 {
-  "username": "string (required)",
+  "username": "string (required, min 3 chars, max 32 chars)",
   "password": "string (required, min 6 chars)",
   "role": "string (optional, default: 'user', values: 'user'|'admin')"
 }

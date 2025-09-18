@@ -17,6 +17,33 @@ router.get('/', authenticateToken, requireAdmin, (req, res) => {
   });
 });
 
+// Get single user (Admin only)
+router.get('/:id', authenticateToken, requireAdmin, async (req, res) => {
+  const identifier = req.params.id;
+  let sql;
+  let params;
+
+  const isNumber = /^\d+$/.test(identifier);
+
+  if (isNumber) {
+    sql = "SELECT id, username, role, created_at FROM users WHERE id = ?";
+    params = [identifier];
+  } else {
+    sql = "SELECT id, username, role, created_at FROM users WHERE username = ?";
+    params = [identifier];
+  }
+
+  db.get(sql, params, (err, user) => {
+    if (err) {
+      return res.status(500).json({ error: 'Database error' });
+    }
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    res.json(user);
+  });
+});
+
 // Create user (Admin only)
 router.post('/', authenticateToken, requireAdmin, async (req, res) => {
   const { username, password, role = 'user' } = req.body;
@@ -24,6 +51,11 @@ router.post('/', authenticateToken, requireAdmin, async (req, res) => {
   const validation = validateRequired(['username', 'password'], req.body);
   if (!validation.valid) {
     return res.status(400).json({ error: validation.message });
+  }
+
+  const usernameValidation = validateUsername(username);
+  if (!usernameValidation.valid) {
+    return res.status(400).json({ error: usernameValidation.message });
   }
 
   const passwordValidation = validatePassword(password);

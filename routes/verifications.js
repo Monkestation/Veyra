@@ -131,49 +131,69 @@ router.post('/', authenticateToken, requireAdmin, (req, res) => {
 // Update verification (Admin only)
 router.put('/:discord_id', authenticateToken, requireAdmin, (req, res) => {
   const discordId = req.params.discord_id;
-  let { ckey, verified_flags, verification_method } = req.body;
+  let { ckey, verified_flags: new_verified_flags, verification_method } = req.body;
 
   // Remove spaces and underscores from ckey to match in-game parsing
   if (ckey) {
     ckey = ckey.replace(/[\s_]/g, '');
   }
 
-  let updates = [];
-  let params = [];
-
-  if (ckey) {
-    updates.push('ckey = ?');
-    params.push(ckey);
-  }
-  if (verified_flags) {
-    updates.push('verified_flags = ?');
-    params.push(JSON.stringify(verified_flags));
-  }
-  if (verification_method) {
-    updates.push('verification_method = ?');
-    params.push(verification_method);
-  }
-
-  if (updates.length === 0) {
-    return res.status(400).json({ error: 'No valid fields to update' });
-  }
-
-  updates.push('verified_by = ?', 'updated_at = CURRENT_TIMESTAMP');
-  params.push(req.user.username, discordId);
-
-  const query = `UPDATE verifications SET ${updates.join(', ')} WHERE LOWER(discord_id) = LOWER(?)`;
-
-  db.run(query, params, function(err) {
+  const selectQuery = 'SELECT verified_flags FROM verifications WHERE discord_id = ?';
+  db.get(selectQuery, [discordId], (err, row) => {
     if (err) {
       return res.status(500).json({ error: 'Database error' });
     }
 
-    if (this.changes === 0) {
+    if (!row) {
       return res.status(404).json({ error: 'Verification not found' });
     }
 
-    logActivity(req.user.id, 'update_verification', `Discord ID: ${discordId}`);
-    res.json({ message: 'Verification updated successfully' });
+    let updates = [];
+    let params = [];
+    let originalFlags = row.verified_flags ? JSON.parse(row.verified_flags) : {};
+
+    if (ckey) {
+      updates.push('ckey = ?');
+      params.push(ckey);
+    }
+
+    if (new_verified_flags) {
+      try {
+        const newFlags = new_verified_flags;
+        originalFlags = { ...originalFlags, ...newFlags };
+        updates.push('verified_flags = ?');
+        params.push(JSON.stringify(originalFlags));
+      } catch (e) {
+        return res.status(400).json({ error: 'Invalid verified_flags format' });
+      }
+    } else if (new_verified_flags === null) {
+      // If it's explicitly null, they want to clear the flags.
+      updates.push('verified_flags = ?');
+      params.push(JSON.stringify({}));
+    }
+
+    if (verification_method) {
+      updates.push('verification_method = ?');
+      params.push(verification_method);
+    }
+
+    if (updates.length === 0) {
+      return res.status(400).json({ error: 'No valid fields to update' });
+    }
+
+    updates.push('verified_by = ?', 'updated_at = CURRENT_TIMESTAMP');
+    params.push(req.user.username, discordId);
+
+    const query = `UPDATE verifications SET ${updates.join(', ')} WHERE LOWER(discord_id) = LOWER(?)`;
+
+    db.run(query, params, function(err) {
+      if (err) {
+        return res.status(500).json({ error: 'Database error' });
+      }
+
+      logActivity(req.user.id, 'update_verification', `Discord ID: ${discordId}`);
+      res.json({ message: 'Verification updated successfully' });
+    });
   });
 });
 
